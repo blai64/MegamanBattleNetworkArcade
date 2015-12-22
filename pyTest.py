@@ -61,6 +61,16 @@ class CharactorMoveEvent(Event):
         self.name = "Charactor Move Event"
         self.charactor = charactor
 
+class CharactorAttackRequest(Event):
+    def __init__(self, attack):
+        self.name = "Charactor Attack Request"
+        self.attack = attack
+
+class CharactorAttackEvent(Event):
+    def __init__(self, charactor):
+        self.name = "Charactor Attack Event"
+        self.charactor = charactor
+
 #------------------------------------------------------------------------------
 class EventManager:
     """this object is responsible for coordinating most communication
@@ -127,6 +137,11 @@ class KeyboardController:
                     direction = DIRECTION_RIGHT
                     ev = CharactorMoveRequest(direction)
 
+                elif event.type == KEYDOWN \
+                     and event.key == K_s:
+                    attack = Attack(1)
+                    ev = CharactorAttackRequest(attack)
+
                 if ev:
                     self.evManager.Post( ev )
 
@@ -146,7 +161,7 @@ class CPUSpinnerController:
         while self.keepGoing:
             event = TickEvent()
             self.evManager.Post( event )
-            clock.tick(60)
+            clock.tick(50)
 
     #----------------------------------------------------------------------
     def Notify(self, event):
@@ -185,11 +200,12 @@ class CharactorSprite(pygame.sprite.Sprite):
     def __init__(self, group=None):
         pygame.sprite.Sprite.__init__(self, group)
 
-        ss = spritesheet.spritesheet('sprites/megaman.png')
+        ss = spritesheet.spritesheet('sprites/move.png')
         w,h = ss.get_dimensions()
 
-        charactorSurf = ss.image_at((0,0,w/16,h/16), MEGAMAN_SPRITE_COLOR)
-        self.moveStrip = SpriteStripAnim('sprites/megaman.png', (0,0,w/16,h/16), 4, MEGAMAN_SPRITE_COLOR, True, 2)
+        charactorSurf = ss.image_at((0,0,w/4,h), MEGAMAN_SPRITE_COLOR)
+        self.moveStrip = SpriteStripAnim('sprites/move.png', (0,0,w/4,h), 4, MEGAMAN_SPRITE_COLOR, True, 2)
+        self.basicAttackStrip = SpriteStripAnim('sprites/basic_attack.png', (0,0,w/5,h), 5, MEGAMAN_SPRITE_COLOR, True, 2)
         # charactorSurf = pygame.Surface( (64,64) )
         # charactorSurf = charactorSurf.convert_alpha()
         # charactorSurf.fill((0,0,0,0)) #make transparent
@@ -198,19 +214,31 @@ class CharactorSprite(pygame.sprite.Sprite):
         self.image = charactorSurf
         self.rect  = charactorSurf.get_rect()
 
-        self.moveFramesLeft = 0
+        self.actionFramesLeft = 0
         self.moveTo = None
+        self.attack = None
 
     #----------------------------------------------------------------------
     def update(self):
-        if self.moveTo and (self.moveFramesLeft == 0):
+        #movement updates
+        if self.moveTo and (self.actionFramesLeft == 0):
             self.image = self.defImage
             self.rect.center = self.moveTo
             print self.moveStrip.i
             self.moveTo = None
         elif self.moveTo:
             self.image = self.moveStrip.next()
-            self.moveFramesLeft -= 1
+            self.actionFramesLeft -= 1
+
+        #attack updates
+        elif self.attack and (self.actionFramesLeft == 0):
+            self.image = self.defImage
+            print self.basicAttackStrip.i
+            self.attack = None
+        elif self.attack:
+            self.image = self.basicAttackStrip.next()
+            self.actionFramesLeft -= 1
+
 #------------------------------------------------------------------------------
 class PygameView:
     def __init__(self, evManager):
@@ -243,7 +271,7 @@ class PygameView:
         # use this squareRect as a cursor and go through the
         # columns and rows and assign the rect 
         # positions of the SectorSprites
-        squareRect = pygame.Rect( (-128,0, 128,128 ) )
+        squareRect = pygame.Rect( (-128,D_HEIGHT/2, 128,128 ) )
 
         column = 0
         row = 0
@@ -253,7 +281,7 @@ class PygameView:
             else:
                 column = 0
                 row += 1
-                squareRect = squareRect.move( -(128*(NUM_COLS-1)), 128 )
+                squareRect = squareRect.move( -(128*(NUM_COLS-1)), 100)
             newSprite = SectorSprite( sector, row, column,self.backSprites)
             newSprite.rect = squareRect
             column += 1
@@ -273,8 +301,14 @@ class PygameView:
         sector = charactor.sector
         sectorSprite = self.GetSectorSprite( sector )
 
-        charactorSprite.moveFramesLeft = 8
-        charactorSprite.moveTo = sectorSprite.rect.center
+        charactorSprite.actionFramesLeft = 8
+        charactorSprite.moveTo = sectorSprite.rect.midtop
+
+    #----------------------
+    def PerformAttackCharactor(self, charactor):
+        charactorSprite = self.GetCharactorSprite(charactor)
+        charactorSprite.attack = charactor.attack
+        charactorSprite.actionFramesLeft = 10
 
     #----------------------------------------------------------------------
     def GetCharactorSprite(self, charactor):
@@ -316,6 +350,9 @@ class PygameView:
 
         elif isinstance( event, CharactorMoveEvent ):
             self.MoveCharactor( event.charactor )
+
+        elif isinstance( event, CharactorAttackEvent ):
+            self.PerformAttackCharactor( event.charactor )
 
 
 #------------------------------------------------------------------------------
@@ -381,6 +418,7 @@ class Charactor:
         self.evManager.RegisterListener( self )
 
         self.sector = None
+        self.attack = None
         self.state = Charactor.STATE_INACTIVE
 
     #----------------------------------------------------------------------
@@ -406,6 +444,14 @@ class Charactor:
         ev = CharactorPlaceEvent( self )
         self.evManager.Post( ev )
 
+    def PerformAttack(self,attack):
+        if self.state == Charactor.STATE_INACTIVE:
+            return
+        # right now we dont care, just basic attack
+        self.attack = attack
+        ev = CharactorAttackEvent(self)
+        self.evManager.Post(ev)
+
     #----------------------------------------------------------------------
     def Notify(self, event):
         if isinstance( event, GameStartedEvent ):
@@ -414,6 +460,9 @@ class Charactor:
 
         elif isinstance( event, CharactorMoveRequest ):
             self.Move( event.direction )
+
+        elif isinstance( event, CharactorAttackRequest ):
+            self.PerformAttack( event.attack )
 
 #------------------------------------------------------------------------------
 class Map:
@@ -482,6 +531,17 @@ class Sector:
     def MovePossible(self, direction):
         if self.neighbors[direction]:
             return 1
+
+#-----------------------------------------------------------------------------
+class Attack:
+    def __init__(self, damage):
+        self.damage = damage
+        self.sector = None
+
+    def invoke(sector):
+        self.sector = sector
+
+
 
 
 #------------------------------------------------------------------------------
