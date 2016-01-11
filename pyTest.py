@@ -70,10 +70,25 @@ class CharactorAttackRequest(Event):
         self.name = "Charactor Attack Request"
         self.attack = attack
 
+#this is more for GUI, tells the view when to animate the attack
 class CharactorAttackEvent(Event):
-    def __init__(self, charactor):
+    def __init__(self, attack, charactor):
         self.name = "Charactor Attack Event"
+        self.attack = attack
         self.charactor = charactor
+
+class AttackEvent(Event):
+    def __init__(self, attack):
+        self.name = "Charactor Attack Event"
+        self.attack = attack
+        
+
+
+class HitEvent(Event):
+    def __init__(self, attack, charactor):
+        self.name = "Hit Event"
+        self.charactor = charactor
+        self.attack = attack
 
 #------------------------------------------------------------------------------
 class EventManager:
@@ -160,9 +175,10 @@ class KeyboardController:
                     direction = DIRECTION_RIGHT
                     ev = CharactorMoveRequest(direction, 2)
 
+                #basic attack test for player 1
                 elif event.type == KEYDOWN \
                      and event.key == K_q:
-                    attack = Attack(1, 1, 1)
+                    attack = Attack(self.evManager, 1, 1, 20, Attack.ROW, 0, 0)
                     ev = CharactorAttackRequest(attack)
 
                 if ev:
@@ -205,16 +221,28 @@ class HPSprite(pygame.sprite.Sprite):
     def __init__(self, charactor, group = None):
         pygame.sprite.Sprite.__init__(self, group)
 
+        self.color = None
         self.rect = None
         self.image = None
         self.charactor = charactor
         self.basicfont = pygame.font.SysFont(None, 48)
+        if self.charactor.idNum == 1:
+            self.color = (255,0,0)
+        else:
+            self.color = (0,0,255)  
         self.update()
+        
 
 
     def update(self):
-        self.image = self.basicfont.render(str(self.charactor.health), True, (255,0,0))
+        self.image = self.basicfont.render(str(self.charactor.health), True, self.color)
         self.rect = self.image.get_rect()
+        if self.charactor.idNum == 1:
+            self.rect.left = 0 
+            self.rect.top = 0
+        else: 
+            self.rect.left = 300 
+            self.rect.top = 0
 
         
 
@@ -251,7 +279,7 @@ class CharactorSprite(pygame.sprite.Sprite):
 
         sBatt = spritesheet.spritesheet('sprites/basic_attack.png')
         bw,bh = sBatt.get_dimensions()
-        print bw
+        
         self.basicAttackStrip = SpriteStripAnim('sprites/basic_attack.png', (0,0,bw/5,bh), 5, MEGAMAN_SPRITE_COLOR, True, 2)
         # charactorSurf = pygame.Surface( (64,64) )
         # charactorSurf = charactorSurf.convert_alpha()
@@ -351,8 +379,6 @@ class PygameView:
 
     def ShowCharactorHP(self, charactor):
         hpSprite = HPSprite(charactor, self.frontSprites)
-        hpSprite.rect.left = 0 
-        hpSprite.rect.top = 0 
     #----------------------------------------------------------------------
     def ShowCharactor(self, charactor):
         sector = charactor.sector
@@ -422,7 +448,6 @@ class PygameView:
         elif isinstance( event, CharactorAttackEvent ):
             self.PerformAttackCharactor( event.charactor )
 
-
 #------------------------------------------------------------------------------
 class Game:
     """..."""
@@ -448,19 +473,45 @@ class Game:
         ev = GameStartedEvent( self )
         self.evManager.Post( ev )
 
-    #----------------------------------------------------------------------
+    def ApplyAttacks(self):
+        for att in self.activeAttacks:
+            att.tillImpact = att.tillImpact - 1
+            print att.tillImpact
+            if att.tillImpact == 0:
+                att.activate()
+                
+        #after all attacks are activated, remove the activated ones from the list. 
+        self.activeAttacks = [att for att in self.activeAttacks if (att.tillImpact > 0)]
+
+    def HandleAttackEvent(self, attack):
+        t = attack.type
+        sector = attack.sector
+
+        #game determines the hit boxes of each attack, since it also has access to all of the other sectors
+        if t == Attack.ROW:
+            attack.area = self.map.getRow(sector)
+        elif t == Attack.COL:
+            attack.area = self.map.getCol(sector)
+        
+        #otherwise, no hitbox, and the attack wont hit anything (should not happen)
+
+        #keep track of the new attack
+        self.activeAttacks.append(attack)
+
+    #----------------------------------------------------------------------qq
     def Notify(self, event):
         if isinstance( event, TickEvent ):
             #start the game if not started
             if self.state == Game.STATE_PREPARING:
                 self.Start()
             #if there are active attacks, then their counter should decrememnt each tick until they activate
-            for att in self.activeAttacks:
-                att.tillImpact = att.tillImpact - 1
-                if att.tillImpact == 0:
-                    att.activate(self.map.getSectors(att.area))
-            #after all attacks are activated, remove the activated ones from the list. 
-            self.activeAttacks = [att for att in self.activeAttacks if (att.tillImpact != 0)]
+            self.ApplyAttacks()
+
+        #add any new attacks that were invoked    
+        elif isinstance(event, AttackEvent):
+            self.HandleAttackEvent(event.attack)
+            
+
 
 
 
@@ -515,14 +566,17 @@ class Charactor:
 
         if self.sector.MovePossible( direction ):
             self.delay = 10
+            self.sector.ch = None #no longer standing on current sector
             newSector = self.sector.neighbors[direction]
             self.sector = newSector
+            self.sector.ch = self
             ev = CharactorMoveEvent( self )
             self.evManager.Post( ev )
 
     #----------------------------------------------------------------------
     def Place(self, sector):
-        self.sector = sector
+        self.sector = sector #set new sector
+        self.sector.ch = self #set character on the sector
         self.state = Charactor.STATE_ACTIVE
 
         ev = CharactorPlaceEvent( self )
@@ -532,12 +586,9 @@ class Charactor:
         # make sure character is active and that it isnt performing any action
         if (self.state == Charactor.STATE_INACTIVE) or self.delay != 0:
             return
-        # right now we dont care, just basic attack
-        self.health -= 1
-        print self.health
         self.attack = attack
         attack.invoke(self.sector)
-        ev = CharactorAttackEvent(self)
+        ev = CharactorAttackEvent(attack, self)
         self.evManager.Post(ev)
 
     #----------------------------------------------------------------------
@@ -553,10 +604,19 @@ class Charactor:
             self.Move( event.direction )
 
         elif isinstance( event, CharactorAttackRequest ):
-            self.PerformAttack( event.attack )
+            if event.attack.invokerID == self.idNum:
+                self.PerformAttack( event.attack )
+        
+        #for a normal tick, delay of character actions should decrement        
         elif isinstance(event, TickEvent):
             if (self.delay > 0):
                 self.delay -= 1
+
+        elif isinstance(event, HitEvent):
+            if event.charactor.idNum == self.idNum:
+                self.health -= event.attack.damage
+            #TODO: should cause hit stun if performing an attack
+
 
 #------------------------------------------------------------------------------
 class Map:
@@ -608,7 +668,14 @@ class Map:
         ev = MapBuiltEvent( self )
         self.evManager.Post( ev )
 
-    def getSectors(sectorIDs):
+
+    def getRow(self,sector):
+        row = sector.idNum / NUM_COLS
+        rowStart = row * NUM_COLS
+        return self.sectors[rowStart : rowStart + NUM_COLS]
+
+
+    def getSectors(self,sectorIDs):
         res = []
         for s in self.sectors:
             if s.idNum in sectorIDs:
@@ -643,33 +710,42 @@ class Chip:
 
 #-----------------------------------------------------------------------------
 class Attack:
+
+    #Attack type enumeration
     ROW = 1
     COL = 2 
     CELL = 3
 
-    def __init__(self, damage, length, t, rowOffset, colOffset):
+    def __init__(self, evManager, invokerID, damage, length, t, rowOffset, colOffset):
         self.charactor = None # owner of the attack
+        self.evManager = evManager
+        self.invokerID = invokerID
         self.damage = damage
         self.sector = None
+
+        #offset from current sector where attack should take place
+        #e.g. if it applies to column in front of character, column offset should be 1
         self.rowOffset = rowOffset
         self.colOffset = colOffset
+
         self.tillImpact = length # number of cycles until the 
-        self.type = t#row, col, cell
+        self.type = t #row, col, cell
         self.area = [] #hitzzones specified by nunmber, eg if tyoe = row, then 1 hits the first row, will be set when 
         self.active = False
     
-    #TODO: only thing that relly works is probably row. 
-    def invoke(sector):
-        if self.type == ROW:
-            area.append(sector.getRow() + rowOffset)
-        elif self.type == COL:
-            area.append( sector.getCol() + colOffset)
-        elif self.type == CELL:
-            area.append( sector.index + colOffset + rowOffset*NUM_COLS)
+    
+    def invoke(self,sector):
+        self.sector = sector
 
         self.active = True
         ev = AttackEvent(self)
-        evManager.Post(ev)
+        self.evManager.Post(ev)
+
+    def activate(self):
+        for s in self.area:
+            if (s.ch and (s.ch.idNum != self.invokerID)) :
+                ev = HitEvent(self, s.ch)
+                self.evManager.Post(ev)
 
 
 
