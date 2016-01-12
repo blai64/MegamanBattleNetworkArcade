@@ -1,18 +1,20 @@
 #! /usr/bin/env python
+import os
 '''
 Example
 '''
 
 
 def Debug( msg ):
-    print msg
+    print( msg)
 
 DIRECTION_UP = 0
 DIRECTION_DOWN = 1
 DIRECTION_LEFT = 2
 DIRECTION_RIGHT = 3
 
-MEGAMAN_SPRITE_COLOR = (200,248,192)
+#MEGAMAN_SPRITE_COLOR = (200,248,192)
+MEGAMAN_SPRITE_COLOR = (0,0,0)
 
 D_WIDTH = 800
 D_HEIGHT = 600
@@ -275,7 +277,11 @@ class SectorSprite(pygame.sprite.Sprite):
     def __init__(self, sector, row, col, group=None):
         pygame.sprite.Sprite.__init__(self, group)
 
-        ss = spritesheet.spritesheet('sprites/panels.png')
+        print("Path at terminal when executing this file")
+        print(os.getcwd())
+        fullname = os.path.join("C:",os.getcwd(),"sprites/panels.png")
+
+        ss = spritesheet.spritesheet(fullname)
         # Sprite is 16x16 pixels at location 0,0 in the file...
         w,h = ss.get_dimensions()
         panel_w = w / NUM_COLS
@@ -294,17 +300,33 @@ class CharactorSprite(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self, group)
 
         self.idNum = idNum
-        sMove = spritesheet.spritesheet('sprites/move.png')
-        w,h = sMove.get_dimensions()
-
-        charactorSurf = sMove.image_at((0,0,w/4,h), MEGAMAN_SPRITE_COLOR)
-        self.moveStrip = SpriteStripAnim('sprites/move.png', (0,0,w/4,h), 4, MEGAMAN_SPRITE_COLOR, True, 2)
-
-
-        sBatt = spritesheet.spritesheet('sprites/basic_attack.png')
-        bw,bh = sBatt.get_dimensions()
         
-        self.basicAttackStrip = SpriteStripAnim('sprites/basic_attack.png', (0,0,bw/5,bh), 5, MEGAMAN_SPRITE_COLOR, True, 2)
+        #--------------------------------- BLai's spritesheet
+        ss = spritesheet.spritesheet('sprites/move.png')
+        w,h = ss.get_dimensions()
+
+        """charactorSurf = ss.image_at((0,0,w/4,h), MEGAMAN_SPRITE_COLOR)
+        self.moveStrip = SpriteStripAnim('sprites/move.png', (0,0,w/4,h), 4, MEGAMAN_SPRITE_COLOR, True, 2)
+        """
+        
+        atkSS = spritesheet.spritesheet('sprites/basic_attack.png')
+        atkW, atkH = atkSS.get_dimensions()
+        self.basicAttackStrip = SpriteStripAnim('sprites/basic_attack.png', (0,0,atkW/5,atkH), 5, MEGAMAN_SPRITE_COLOR, True, 2)
+
+
+        #--------------------------------- CKwong's spritesheet
+        
+        ### sprite sheets have been rescaled to twice bigger
+        
+        baseSS = spritesheet.spritesheet('sprites/base_layer.png')
+        baseW, baseH = baseSS.get_dimensions()
+        
+        charactorSurf = baseSS.image_at((0,0,108,108),MEGAMAN_SPRITE_COLOR)
+        self.moveStrip = SpriteStripAnim('sprites/base_layer.png',(0,485,372/4,120),4, MEGAMAN_SPRITE_COLOR, True,2)
+        
+        self.swordAttackStrip = SpriteStripAnim('sprites/base_layer.png',(0,610,389/4,120),4,MEGAMAN_SPRITE_COLOR,True,2)
+        
+
         # charactorSurf = pygame.Surface( (64,64) )
         # charactorSurf = charactorSurf.convert_alpha()
         # charactorSurf.fill((0,0,0,0)) #make transparent
@@ -312,6 +334,7 @@ class CharactorSprite(pygame.sprite.Sprite):
         self.defImage = charactorSurf #keep track of default image to reset after movement
         self.image = charactorSurf
         self.rect  = self.image.get_rect()
+
 
         self.actionFramesLeft = 0
         self.moveTo = None
@@ -326,6 +349,7 @@ class CharactorSprite(pygame.sprite.Sprite):
             
             self.rect = self.image.get_rect()
             self.rect.center = self.moveTo
+            print (self.moveStrip.i)
             self.moveTo = None
             changed = True
 
@@ -335,22 +359,71 @@ class CharactorSprite(pygame.sprite.Sprite):
             changed = True
 
 
-
         #attack updates
         elif self.attack and (self.actionFramesLeft == 0):
             self.image = self.defImage
+            print (self.swordAttackStrip.i)
             self.attack = None
             changed = True
+        
         elif self.attack:
-            self.image = self.basicAttackStrip.next()
-            
+            #self.image = self.basicAttackStrip.next()
+            self.image = self.swordAttackStrip.next()
             self.actionFramesLeft -= 1
             changed = True
 
         #mirror character on right side
         if self.idNum == 2 and changed:
             self.image = trans.flip(self.image, True, False)
-            
+                        
+
+#------------------------------------------------------------------------------
+class EffectSprite(pygame.sprite.Sprite):
+    def __init__(self, group=None):
+        pygame.sprite.Sprite.__init__(self, group)
+        ss = spritesheet.spritesheet('sprites/Swords_blade.png')
+
+        w,h = ss.get_dimensions()
+        effectSurf = ss.image_at((0,0,59,120),MEGAMAN_SPRITE_COLOR)
+
+        self.swordEffectStrip = SpriteStripAnim('sprites/Swords_blade.png',(0,0,500/6,120),6,MEGAMAN_SPRITE_COLOR,True,2)
+        w1 = 58
+        w2 = 78
+        w3 = 134
+        w4 = 103
+        w5 = 81
+        w6 = 49
+        rects = [(0,0,w1,90),(w1,0,w2,90), (w1+w2,0,w3,90),
+                 (w1+w2+w3,0,w4,90),(w1+w2+w3+w4,0,w5,90),
+                 (w1+w2+w3+w4+w5,0,w6,90)]
+        self.swordEffectStrip.images = ss.images_at(rects,MEGAMAN_SPRITE_COLOR)
+        #--------------------------------- CKwong's spritesheet
+                
+        # charactorSurf = pygame.Surface( (64,64) )
+        # charactorSurf = charactorSurf.convert_alpha()
+        # charactorSurf.fill((0,0,0,0)) #make transparent
+        # pygame.draw.circle( charactorSurf, (255,0,0), (32,32), 32 )
+
+        self.defImage = effectSurf #keep track of default image to reset after movement
+        self.image = effectSurf
+        self.rect  = effectSurf.get_rect()
+
+
+        self.actionFramesLeft = 0
+        self.extras = None #for overlaying sprites on top
+
+    def update(self):
+        #attack updates
+        if self.extras and (self.actionFramesLeft == 0):
+            self.extras = None
+            #self.image = self.defImage
+            self.kill()
+            print "attack update"
+            print (self.swordEffectStrip.i)
+        elif self.extras:
+            self.image = self.swordEffectStrip.next()
+            self.actionFramesLeft -= 1
+
 
 #------------------------------------------------------------------------------
 class PygameView:
@@ -372,7 +445,7 @@ class PygameView:
 
         self.backSprites = pygame.sprite.RenderUpdates()
         self.frontSprites = pygame.sprite.RenderUpdates()
-
+        self.extraSprites = pygame.sprite.RenderUpdates()
 
     #----------------------------------------------------------------------
     def ShowMap(self, gameMap):
@@ -420,17 +493,35 @@ class PygameView:
         charactorSprite.actionFramesLeft = 8
         charactorSprite.moveTo = sectorSprite.rect.midtop
 
+
     #----------------------
     def PerformAttackCharactor(self, charactor):
+        sector = charactor.sector
+        
+        
         charactorSprite = self.GetCharactorSprite(charactor)
+
         charactorSprite.attack = charactor.attack
-        charactorSprite.actionFramesLeft = 10
+
+        charactorSprite.actionFramesLeft = 12
+
+        extraSprite = EffectSprite( self.extraSprites )
+        sectorSprite = self.GetSectorSprite( sector )
+        extraSprite.rect.center = sectorSprite.rect.midtop
+        movingExtra = self.GetExtraSprite( extraSprite )
+        movingExtra.extras = 1
+        movingExtra.actionFramesLeft = 12
 
     #----------------------------------------------------------------------
     def GetCharactorSprite(self, charactor):
         for s in self.frontSprites:
             if hasattr(s, "idNum") and s.idNum  == charactor.idNum:
                 return s
+        return None
+
+    def GetExtraSprite(self, extra):
+        for e in self.extraSprites:
+            return e
         return None
 
     #----------------------------------------------------------------------
@@ -446,14 +537,17 @@ class PygameView:
             #Draw Everything
             self.backSprites.clear( self.window, self.background )
             self.frontSprites.clear( self.window, self.background )
+            self.extraSprites.clear( self.window, self.background )
 
             self.backSprites.update()
             self.frontSprites.update()
+            self.extraSprites.update()
 
             dirtyRects1 = self.backSprites.draw( self.window )
             dirtyRects2 = self.frontSprites.draw( self.window )
+            dirtyRects3 = self.extraSprites.draw(self.window)
             
-            dirtyRects = dirtyRects1 + dirtyRects2
+            dirtyRects = dirtyRects1 + dirtyRects2 + dirtyRects3
             pygame.display.update( dirtyRects )
 
 
