@@ -240,6 +240,55 @@ class CharactorSprite(pygame.sprite.Sprite):
             self.actionFramesLeft -= 1
 
 #------------------------------------------------------------------------------
+class EffectSprite(pygame.sprite.Sprite):
+    def __init__(self, group=None):
+        pygame.sprite.Sprite.__init__(self, group)
+        ss = spritesheet.spritesheet('sprites/Swords_blade.png')
+
+        w,h = ss.get_dimensions()
+        effectSurf = ss.image_at((0,0,59,120),MEGAMAN_SPRITE_COLOR)
+
+        self.swordEffectStrip = SpriteStripAnim('sprites/Swords_blade.png',(0,0,500/6,120),6,MEGAMAN_SPRITE_COLOR,True,2)
+        w1 = 58
+        w2 = 78
+        w3 = 134
+        w4 = 103
+        w5 = 81
+        w6 = 49
+        rects = [(0,0,w1,90),(w1,0,w2,90), (w1+w2,0,w3,90),
+                 (w1+w2+w3,0,w4,90),(w1+w2+w3+w4,0,w5,90),
+                 (w1+w2+w3+w4+w5,0,w6,90)]
+        self.swordEffectStrip.images = ss.images_at(rects,MEGAMAN_SPRITE_COLOR)
+        #--------------------------------- CKwong's spritesheet
+                
+        # charactorSurf = pygame.Surface( (64,64) )
+        # charactorSurf = charactorSurf.convert_alpha()
+        # charactorSurf.fill((0,0,0,0)) #make transparent
+        # pygame.draw.circle( charactorSurf, (255,0,0), (32,32), 32 )
+
+        self.defImage = effectSurf #keep track of default image to reset after movement
+        self.image = effectSurf
+        self.rect  = effectSurf.get_rect()
+
+
+        self.actionFramesLeft = 0
+        self.extras = None #for overlaying sprites on top
+
+    def update(self):
+        #attack updates
+        if self.extras and (self.actionFramesLeft == 0):
+            self.extras = None
+            #self.image = self.defImage
+            self.kill()
+            print "attack update"
+            print (self.swordEffectStrip.i)
+        elif self.extras:
+            self.image = self.swordEffectStrip.next()
+            self.actionFramesLeft -= 1
+        
+    
+
+#------------------------------------------------------------------------------
 class PygameView:
     def __init__(self, evManager):
         self.evManager = evManager
@@ -304,17 +353,35 @@ class PygameView:
         charactorSprite.actionFramesLeft = 8
         charactorSprite.moveTo = sectorSprite.rect.midtop
 
+
     #----------------------
     def PerformAttackCharactor(self, charactor):
+        sector = charactor.sector
+        
+        
         charactorSprite = self.GetCharactorSprite(charactor)
+
         charactorSprite.attack = charactor.attack
-        charactorSprite.actionFramesLeft = 10
+
+        charactorSprite.actionFramesLeft = 12
+
+        extraSprite = EffectSprite( self.extraSprites )
+        sectorSprite = self.GetSectorSprite( sector )
+        extraSprite.rect.center = sectorSprite.rect.midtop
+        movingExtra = self.GetExtraSprite( extraSprite )
+        movingExtra.extras = 1
+        movingExtra.actionFramesLeft = 12
 
     #----------------------------------------------------------------------
     def GetCharactorSprite(self, charactor):
         #there will be only one
         for s in self.frontSprites:
             return s
+        return None
+
+    def GetExtraSprite(self, extra):
+        for e in self.extraSprites:
+            return e
         return None
 
     #----------------------------------------------------------------------
@@ -330,6 +397,7 @@ class PygameView:
             #Draw Everything
             self.backSprites.clear( self.window, self.background )
             self.frontSprites.clear( self.window, self.background )
+            self.extraSprites.clear( self.window, self.background )
 
             self.backSprites.update()
             self.frontSprites.update()
