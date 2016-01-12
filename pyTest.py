@@ -186,7 +186,7 @@ class SectorSprite(pygame.sprite.Sprite):
 
         print("Path at terminal when executing this file")
         print(os.getcwd())
-        fullname = os.path.join("C:",os.getcwd(),"panels.png")
+        fullname = os.path.join("C:",os.getcwd(),"sprites/panels.png")
 
         ss = spritesheet.spritesheet(fullname)
         # Sprite is 16x16 pixels at location 0,0 in the file...
