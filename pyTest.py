@@ -90,6 +90,16 @@ class HitEvent(Event):
         self.charactor = charactor
         self.attack = attack
 
+class ChargingEvent(Event):
+    def __init__(self, charactorID):
+        self.name = "Charging Event"
+        self.charactorID = charactorID
+
+class ChargingReleaseEvent(Event):
+    def __init__(self, charactorID):
+        self.name = "Charging Event"
+        self.charactorID = charactorID
+
 #------------------------------------------------------------------------------
 class EventManager:
     """this object is responsible for coordinating most communication
@@ -178,8 +188,22 @@ class KeyboardController:
                 #basic attack test for player 1
                 elif event.type == KEYDOWN \
                      and event.key == K_q:
-                    attack = Attack(self.evManager, 1, 1, 20, Attack.ROW, 0, 0)
+                    attack = BasicAttack(self.evManager, 1)
                     ev = CharactorAttackRequest(attack)
+                elif event.type == KEYDOWN \
+                     and event.key == K_e:
+                    attack = ChargedAttack(self.evManager, 1)
+                    ev = CharactorAttackRequest(attack)
+
+                elif event.type == KEYDOWN \
+                     and event.key == K_r:
+                    ev = ChargingEvent(1)
+
+                elif event.type == KEYUP \
+                     and event.key == K_r:
+                    ev = ChargingReleaseEvent(1)
+                
+
 
                 if ev:
                     self.evManager.Post( ev )
@@ -552,6 +576,12 @@ class Charactor:
         self.attack = None
         self.state = Charactor.STATE_INACTIVE
         self.health = 100
+
+        #attributes for charging a normal attack
+        self.charging = False
+        self.charge = 0
+
+        #TODO: separate move delay and attack delay MAYBE
         self.delay = 0 #this variable accounts for any delay when taking actions = attacking and moving
 
 
@@ -611,11 +641,31 @@ class Charactor:
         elif isinstance(event, TickEvent):
             if (self.delay > 0):
                 self.delay -= 1
+            if self.idNum == 1:
+                print self.charge
+            if self.charging:
+                self.charge += 1
 
         elif isinstance(event, HitEvent):
             if event.charactor.idNum == self.idNum:
                 self.health -= event.attack.damage
             #TODO: should cause hit stun if performing an attack
+
+        elif isinstance(event, ChargingEvent):
+            if event.charactorID == self.idNum:
+                self.charging = True
+        
+        elif isinstance(event, ChargingReleaseEvent):
+            #if matching id, perform corresponding attack
+            if event.charactorID == self.idNum and self.charge >= 100:
+                self.PerformAttack(ChargedAttack(self.evManager, 1))
+            elif event.charactorID == self.idNum:
+                self.PerformAttack(BasicAttack(self.evManager, 1))
+            #regardless of outcome, charging should be set back to default for charactor
+            if event.charactorID == self.idNum:
+                self.charge = 0
+                self.charging = False
+        
 
 
 #------------------------------------------------------------------------------
@@ -748,8 +798,15 @@ class Attack:
                 self.evManager.Post(ev)
 
 
+#------------------------------------------------------------------------------
+#implement other types of attacks here
+class BasicAttack(Attack):
+    def __init__(self,evManager, invokerID):
+        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0)
 
-
+class ChargedAttack(Attack):
+    def __init__(self,evManager, invokerID):
+        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0)   
  
 
 
