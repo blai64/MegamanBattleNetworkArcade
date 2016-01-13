@@ -379,24 +379,35 @@ class CharactorSprite(pygame.sprite.Sprite):
 
 #------------------------------------------------------------------------------
 class EffectSprite(pygame.sprite.Sprite):
-    def __init__(self, group=None):
+    def __init__(self, pathToSprite, spriteWidths, group=None):
         pygame.sprite.Sprite.__init__(self, group)
-        ss = spritesheet.spritesheet('sprites/Swords_blade.png')
+        #ss = spritesheet.spritesheet('sprites/Swords_blade.png')
+        ss = spritesheet.spritesheet(pathToSprite)
+
 
         w,h = ss.get_dimensions()
         effectSurf = ss.image_at((0,0,59,120),MEGAMAN_SPRITE_COLOR)
 
-        self.swordEffectStrip = SpriteStripAnim('sprites/Swords_blade.png',(0,0,500/6,120),6,MEGAMAN_SPRITE_COLOR,True,2)
-        w1 = 58
-        w2 = 78
-        w3 = 134
-        w4 = 103
-        w5 = 81
-        w6 = 49
-        rects = [(0,0,w1,90),(w1,0,w2,90), (w1+w2,0,w3,90),
-                 (w1+w2+w3,0,w4,90),(w1+w2+w3+w4,0,w5,90),
-                 (w1+w2+w3+w4+w5,0,w6,90)]
-        self.swordEffectStrip.images = ss.images_at(rects,MEGAMAN_SPRITE_COLOR)
+        #self.swordEffectStrip = SpriteStripAnim('sprites/Swords_blade.png',(0,0,500/6,120),6,MEGAMAN_SPRITE_COLOR,True,2)
+        self.effectStrip = SpriteStripAnim(pathToSprite,(0,0,500/len(spriteWidths),120), len(spriteWidths),MEGAMAN_SPRITE_COLOR,True,2)
+        # w1 = 58
+        # w2 = 78
+        # w3 = 134
+        # w4 = 103
+        # w5 = 81
+        # w6 = 49
+        # rects = [(0,0,w1,90),(w1,0,w2,90), (w1+w2,0,w3,90),
+        #          (w1+w2+w3,0,w4,90),(w1+w2+w3+w4,0,w5,90),
+        #          (w1+w2+w3+w4+w5,0,w6,90)]
+
+        rects = []
+        widthSum = 0
+        for w in spriteWidths:
+            newRect = (widthSum, 0, w, 90)
+            rects.append(newRect)
+            widthSum += w
+
+        self.effectStrip.images = ss.images_at(rects,MEGAMAN_SPRITE_COLOR)
         #--------------------------------- CKwong's spritesheet
                 
         # charactorSurf = pygame.Surface( (64,64) )
@@ -419,9 +430,9 @@ class EffectSprite(pygame.sprite.Sprite):
             #self.image = self.defImage
             self.kill()
             print "attack update"
-            print (self.swordEffectStrip.i)
+            print (self.effectStrip.i)
         elif self.extras:
-            self.image = self.swordEffectStrip.next()
+            self.image = self.effectStrip.next()
             self.actionFramesLeft -= 1
 
 
@@ -495,7 +506,7 @@ class PygameView:
 
 
     #----------------------
-    def PerformAttackCharactor(self, charactor):
+    def PerformAttackCharactor(self, charactor, attack):
         sector = charactor.sector
         
         
@@ -505,7 +516,7 @@ class PygameView:
 
         charactorSprite.actionFramesLeft = 12
 
-        extraSprite = EffectSprite( self.extraSprites )
+        extraSprite = EffectSprite( attack.pathToSprite, attack.spriteWidths, self.extraSprites )
         sectorSprite = self.GetSectorSprite( sector )
         extraSprite.rect.center = sectorSprite.rect.midtop
         movingExtra = self.GetExtraSprite( extraSprite )
@@ -566,7 +577,7 @@ class PygameView:
 
         elif isinstance( event, CharactorAttackEvent ):
             print "hello"
-            self.PerformAttackCharactor( event.charactor )
+            self.PerformAttackCharactor( event.charactor, event.attack )
 
 #------------------------------------------------------------------------------
 class Game:
@@ -818,6 +829,13 @@ class Map:
         rowStart = row * NUM_COLS
         return self.sectors[rowStart : rowStart + NUM_COLS]
 
+    def getCol(self ,sector, offset):
+        col = (sector.idNum % NUM_COLS)  + offset
+        res = []
+        for i in range(col, len(self.sectors), NUM_COLS):
+            res.append(self.sectors)
+        return res
+
 
     def getSectors(self,sectorIDs):
         res = []
@@ -863,12 +881,23 @@ class Attack:
     COL = 2 
     CELL = 3
 
-    def __init__(self, evManager, invokerID, damage, length, t, rowOffset, colOffset):
+    def __init__(   self, 
+                    evManager, 
+                    invokerID, 
+                    damage, 
+                    length, 
+                    t, 
+                    rowOffset, 
+                    colOffset,
+                    pathToSprite,
+                    spriteWidths):
         self.charactor = None # owner of the attack
         self.evManager = evManager
         self.invokerID = invokerID
         self.damage = damage
         self.sector = None
+        self.pathToSprite = pathToSprite
+        self.spriteWidths = spriteWidths
 
         #offset from current sector where attack should take place
         #e.g. if it applies to column in front of character, column offset should be 1
@@ -899,11 +928,18 @@ class Attack:
 #implement other types of attacks here
 class BasicAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0)
+        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, "sprites/Swords_blade.png", 
+            [58,78,134,103,81,49])
 
 class ChargedAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0)   
+        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0, "", []) 
+
+
+class SwordAttack(Attack):
+    def __init__(self,evManager, invokerID):
+        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.COL, 0, 1, "sprites/Swords_blade.png", 
+            [58,78,134,103,81,49])   
  
 
 
