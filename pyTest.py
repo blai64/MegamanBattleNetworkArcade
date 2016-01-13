@@ -13,7 +13,7 @@ DIRECTION_DOWN = 1
 DIRECTION_LEFT = 2
 DIRECTION_RIGHT = 3
 
-#MEGAMAN_SPRITE_COLOR = (200,248,192)
+MEGAMAN_SPRITE_COLOR1 = (200,248,192)
 MEGAMAN_SPRITE_COLOR = (0,0,0)
 
 D_WIDTH = 800
@@ -193,9 +193,11 @@ class KeyboardController:
                     attack = BasicAttack(self.evManager, 1)
                     ev = CharactorAttackRequest(attack)
                 elif event.type == KEYDOWN \
-                     and event.key == K_e:
-                    attack = ChargedAttack(self.evManager, 1)
-                    ev = CharactorAttackRequest(attack)
+                     and event.key == K_u:
+                    ev = ActivateChipEvent(1)
+                elif event.type == KEYDOWN \
+                     and event.key == K_i:
+                    ev = SwapChipEvent(1)
 
                 elif event.type == KEYDOWN \
                      and event.key == K_r:
@@ -324,7 +326,7 @@ class CharactorSprite(pygame.sprite.Sprite):
         charactorSurf = baseSS.image_at((0,0,108,108),MEGAMAN_SPRITE_COLOR)
         self.moveStrip = SpriteStripAnim('sprites/base_layer.png',(0,485,372/4,120),4, MEGAMAN_SPRITE_COLOR, True,2)
         
-        self.swordAttackStrip = SpriteStripAnim('sprites/base_layer.png',(0,610,389/4,120),4,MEGAMAN_SPRITE_COLOR,True,2)
+        #self.swordAttackStrip = SpriteStripAnim('sprites/base_layer.png',(0,610,389/4,120),4,MEGAMAN_SPRITE_COLOR,True,2)
         
 
         # charactorSurf = pygame.Surface( (64,64) )
@@ -339,6 +341,11 @@ class CharactorSprite(pygame.sprite.Sprite):
         self.actionFramesLeft = 0
         self.moveTo = None
         self.attack = None
+
+    def updateAttackStrip(self, path, numFrames):
+        tempSS = spritesheet.spritesheet(path)
+        tempW, tempH = tempSS.get_dimensions()
+        self.attackStrip = SpriteStripAnim(path,(0, 0,tempW / numFrames,tempH),numFrames,MEGAMAN_SPRITE_COLOR,True,2)
 
     #----------------------------------------------------------------------
     def update(self):
@@ -362,13 +369,13 @@ class CharactorSprite(pygame.sprite.Sprite):
         #attack updates
         elif self.attack and (self.actionFramesLeft == 0):
             self.image = self.defImage
-            print (self.swordAttackStrip.i)
+            print (self.attackStrip.i)
             self.attack = None
             changed = True
         
         elif self.attack:
             #self.image = self.basicAttackStrip.next()
-            self.image = self.swordAttackStrip.next()
+            self.image = self.attackStrip.next()
             self.actionFramesLeft -= 1
             changed = True
 
@@ -379,7 +386,7 @@ class CharactorSprite(pygame.sprite.Sprite):
 
 #------------------------------------------------------------------------------
 class EffectSprite(pygame.sprite.Sprite):
-    def __init__(self, pathToSprite, spriteWidths, group=None):
+    def __init__(self, pathToSprite, spriteWidths, top, height, group=None):
         pygame.sprite.Sprite.__init__(self, group)
         #ss = spritesheet.spritesheet('sprites/Swords_blade.png')
         ss = spritesheet.spritesheet(pathToSprite)
@@ -403,12 +410,12 @@ class EffectSprite(pygame.sprite.Sprite):
         rects = []
         widthSum = 0
         for w in spriteWidths:
-            newRect = (widthSum, 0, w, 90)
+            newRect = (widthSum, top, w, height)
             rects.append(newRect)
             widthSum += w
 
-        self.effectStrip.images = ss.images_at(rects,MEGAMAN_SPRITE_COLOR)
-        #--------------------------------- CKwong's spritesheet
+        self.effectStrip.images = ss.images_at(rects, MEGAMAN_SPRITE_COLOR)
+        #--------------------------------- CKqqwong's spritesheet
                 
         # charactorSurf = pygame.Surface( (64,64) )
         # charactorSurf = charactorSurf.convert_alpha()
@@ -512,16 +519,17 @@ class PygameView:
         
         charactorSprite = self.GetCharactorSprite(charactor)
 
-        charactorSprite.attack = charactor.attack
+        charactorSprite.attack = attack
+        charactorSprite.updateAttackStrip(attack.pathToChSprite, attack.chSpriteFrames)
 
-        charactorSprite.actionFramesLeft = 12
-
-        extraSprite = EffectSprite( attack.pathToSprite, attack.spriteWidths, self.extraSprites )
-        sectorSprite = self.GetSectorSprite( sector )
-        extraSprite.rect.center = sectorSprite.rect.midtop
-        movingExtra = self.GetExtraSprite( extraSprite )
-        movingExtra.extras = 1
-        movingExtra.actionFramesLeft = 12
+        charactorSprite.actionFramesLeft = attack.chSpriteFrames*2
+        if attack.pathToSprite:
+            extraSprite = EffectSprite( attack.pathToSprite, attack.spriteWidths, attack.spriteTop, attack.spriteHeight, self.extraSprites )
+            sectorSprite = self.GetSectorSprite( sector )
+            extraSprite.rect.center = sectorSprite.rect.midtop
+            movingExtra = self.GetExtraSprite( extraSprite )
+            movingExtra.extras = 1
+            movingExtra.actionFramesLeft = 12
 
     #----------------------------------------------------------------------
     def GetCharactorSprite(self, charactor):
@@ -689,6 +697,8 @@ class Charactor:
 
         #TODO: separate move delay and attack delay MAYBE
         self.delay = 0 #this variable accounts for any delay when taking actions = attacking and moving
+
+        self.chips = []
 
 
     #----------------------------------------------------------------------
@@ -871,7 +881,17 @@ class Chip:
         self.attack = attack
         self.thumbnail = None #Should be path to thumbnail
 
-    
+
+#This is for generating random chips to refill a character's chips. 
+# if there is a new type of chip, just add it to the dictionary. 
+class ChipFactory:
+    def __init__(self, evManager):
+        self.evManager = evManager
+
+    def getRandomChip():
+        constructors = {1 : SwordChip} 
+        i = random.randint(1,len(constructors))
+        return constructors[i]()
 
 #-----------------------------------------------------------------------------
 class Attack:
@@ -890,14 +910,25 @@ class Attack:
                     rowOffset, 
                     colOffset,
                     pathToSprite,
-                    spriteWidths):
+                    spriteWidths,
+                    spriteTop,
+                    spriteHeight,
+                    pathToChSprite,
+                    chSpriteFrames):
         self.charactor = None # owner of the attack
         self.evManager = evManager
         self.invokerID = invokerID
         self.damage = damage
         self.sector = None
+
+        #sprite information
         self.pathToSprite = pathToSprite
         self.spriteWidths = spriteWidths
+        self.spriteTop = spriteTop
+        self.spriteHeight = spriteHeight
+
+        self.pathToChSprite = pathToChSprite
+        self.chSpriteFrames = chSpriteFrames
 
         #offset from current sector where attack should take place
         #e.g. if it applies to column in front of character, column offset should be 1
@@ -928,18 +959,19 @@ class Attack:
 #implement other types of attacks here
 class BasicAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, "sprites/Swords_blade.png", 
-            [58,78,134,103,81,49])
+        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
+            [], 0, 0, "sprites/basic_attack.png", 5)
 
 class ChargedAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0, "", []) 
+        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
+            [], 0, 0, "sprites/hand_thing.png", 4)
 
 
 class SwordAttack(Attack):
     def __init__(self,evManager, invokerID):
         Attack.__init__(self, evManager, invokerID, 10, 10, Attack.COL, 0, 1, "sprites/Swords_blade.png", 
-            [58,78,134,103,81,49])   
+            [58,78,134,103,81,49], 90)   
  
 
 
