@@ -520,6 +520,7 @@ class PygameView:
         return None
 
     def GetExtraSprite(self, extra):
+        print self.extraSprites.sprites()
         for e in self.extraSprites:
             return e
         return None
@@ -564,6 +565,7 @@ class PygameView:
             self.MoveCharactor( event.charactor )
 
         elif isinstance( event, CharactorAttackEvent ):
+            print "hello"
             self.PerformAttackCharactor( event.charactor )
 
 #------------------------------------------------------------------------------
@@ -594,7 +596,6 @@ class Game:
     def ApplyAttacks(self):
         for att in self.activeAttacks:
             att.tillImpact = att.tillImpact - 1
-            print att.tillImpact
             if att.tillImpact == 0:
                 att.activate()
                 
@@ -710,6 +711,7 @@ class Charactor:
         # make sure character is active and that it isnt performing any action
         if (self.state == Charactor.STATE_INACTIVE) or self.delay != 0:
             return
+        self.delay = 20
         self.attack = attack
         attack.invoke(self.sector)
         ev = CharactorAttackEvent(attack, self)
@@ -735,8 +737,6 @@ class Charactor:
         elif isinstance(event, TickEvent):
             if (self.delay > 0):
                 self.delay -= 1
-            if self.idNum == 1:
-                print self.charge
             if self.charging:
                 self.charge += 1
 
@@ -849,8 +849,11 @@ class Sector:
 
 
 class Chip:
-    def __init__(self, attack):
+    def __init__(self, attack, animationStrip):
         self.attack = attack
+        self.thumbnail = None #Should be path to thumbnail
+
+    
 
 #-----------------------------------------------------------------------------
 class Attack:
@@ -914,6 +917,7 @@ def main():
     keybd = KeyboardController( evManager )
     spinner = CPUSpinnerController( evManager )
     pygameView = PygameView( evManager )
+    pygameView2 = PygameView( evManager )
     game = Game( evManager )
     
     spinner.Run()
