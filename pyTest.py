@@ -102,6 +102,11 @@ class ChargingReleaseEvent(Event):
         self.name = "Charging Event"
         self.charactorID = charactorID
 
+class ActivateChipEvent(Event):
+    def __init__(self, charactorID):
+        self.name = "Activate Chip Event"
+        self.charactorID = charactorID
+
 #------------------------------------------------------------------------------
 class EventManager:
     """this object is responsible for coordinating most communication
@@ -192,9 +197,16 @@ class KeyboardController:
                      and event.key == K_q:
                     attack = BasicAttack(self.evManager, 1)
                     ev = CharactorAttackRequest(attack)
+
+                elif event.type == KEYDOWN \
+                     and event.key == K_e:
+                    attack = SwordAttack(self.evManager, 1)
+                    ev = CharactorAttackRequest(attack)
+
                 elif event.type == KEYDOWN \
                      and event.key == K_u:
                     ev = ActivateChipEvent(1)
+
                 elif event.type == KEYDOWN \
                      and event.key == K_i:
                     ev = SwapChipEvent(1)
@@ -238,6 +250,7 @@ class CPUSpinnerController:
 
 
 import pygame, sys
+import random
 from pygame.locals import *
 import pygame.transform as trans
 import spritesheet
@@ -272,7 +285,39 @@ class HPSprite(pygame.sprite.Sprite):
             self.rect.left = 300 
             self.rect.top = 0
 
+class ChargeSprite(pygame.sprite.Sprite):
+    def __init__(self, charactor, group = None):
+        pygame.sprite.Sprite.__init__(self, group)
+        self.color = None
+        self.rect = None
+        self.image = None
+        self.charactor = charactor
+    
+        if self.charactor.idNum == 1:
+            self.color = (255,0,0)
+        else:
+            self.color = (0,0,255)  
+        self.update()
         
+
+
+    def update(self):
+        self.image = pygame.Surface( (128,20) )
+        self.image.fill( (0,255,128) )
+
+        statusBar = pygame.Surface(((128*((self.charactor.charge*1.0)/100)),20))
+        statusBar.fill(self.color)
+        self.image.blit(statusBar, (0,0))
+
+        self.rect = self.image.get_rect()
+        if self.charactor.idNum == 1:
+            self.rect.left = 0 
+            self.rect.top = 100
+        else: 
+            self.rect.left = 300 
+            self.rect.top = 100
+
+
 
 #------------------------------------------------------------------------------
 class SectorSprite(pygame.sprite.Sprite):
@@ -298,10 +343,11 @@ class SectorSprite(pygame.sprite.Sprite):
 
 #------------------------------------------------------------------------------
 class CharactorSprite(pygame.sprite.Sprite):
-    def __init__(self, idNum, group=None):
+    def __init__(self, charactor, group=None):
         pygame.sprite.Sprite.__init__(self, group)
 
-        self.idNum = idNum
+        self.charactor = charactor
+        self.idNum = self.charactor.idNum
         
         #--------------------------------- BLai's spritesheet
         ss = spritesheet.spritesheet('sprites/move.png')
@@ -342,17 +388,34 @@ class CharactorSprite(pygame.sprite.Sprite):
         self.moveTo = None
         self.attack = None
 
-    def updateAttackStrip(self, path, numFrames):
+        #---------------------------charging animations
+
+        chargeSS = spritesheet.spritesheet("sprites/AreaGrab.png")
+
+        chargeW, chargeH = chargeSS.get_dimensions()
+
+        chargeRects = []
+        chargeWidthSum = 0
+        for w in range(4):
+            newRect = (chargeWidthSum, 0, 38, 40)
+            chargeRects.append(newRect)
+            chargeWidthSum += w
+
+        self.chargeImages = chargeSS.images_at(chargeRects, MEGAMAN_SPRITE_COLOR)
+        self.chargeIndex = 0
+
+
+    def updateAttackStrip(self, path, numFrames, width):
         tempSS = spritesheet.spritesheet(path)
         tempW, tempH = tempSS.get_dimensions()
-        self.attackStrip = SpriteStripAnim(path,(0, 0,tempW / numFrames,tempH),numFrames,MEGAMAN_SPRITE_COLOR,True,2)
+        self.attackStrip = SpriteStripAnim(path,(0, 0,width,tempH),numFrames,MEGAMAN_SPRITE_COLOR,True,2)
 
     #----------------------------------------------------------------------
     def update(self):
         #movement updates
         changed = False
         if self.moveTo and (self.actionFramesLeft == 0):
-            self.image = self.defImage
+            self.image = self.defImage.copy()
             
             self.rect = self.image.get_rect()
             self.rect.center = self.moveTo
@@ -361,23 +424,29 @@ class CharactorSprite(pygame.sprite.Sprite):
             changed = True
 
         elif self.moveTo:
-            self.image = self.moveStrip.next()
+            self.image = self.moveStrip.next().copy()
             self.actionFramesLeft -= 1
             changed = True
 
 
         #attack updates
         elif self.attack and (self.actionFramesLeft == 0):
-            self.image = self.defImage
+            self.image = self.defImage.copy()
             print (self.attackStrip.i)
             self.attack = None
             changed = True
         
         elif self.attack:
             #self.image = self.basicAttackStrip.next()
-            self.image = self.attackStrip.next()
+            self.image = self.attackStrip.next().copy()
             self.actionFramesLeft -= 1
             changed = True
+
+        if self.charactor.charging:
+            chargingImage = self.chargeImages[self.chargeIndex]
+            self.image.blit(chargingImage, self.image.get_rect().center)
+            self.chargeIndex = (self.chargeIndex + 1) % len(self.chargeImages)
+
 
         #mirror character on right side
         if self.idNum == 2 and changed:
@@ -494,10 +563,11 @@ class PygameView:
 
     def ShowCharactorHP(self, charactor):
         hpSprite = HPSprite(charactor, self.frontSprites)
+        chargeSprite = ChargeSprite(charactor, self.frontSprites)
     #----------------------------------------------------------------------
     def ShowCharactor(self, charactor):
         sector = charactor.sector
-        charactorSprite = CharactorSprite( charactor.idNum, self.frontSprites )
+        charactorSprite = CharactorSprite( charactor, self.frontSprites )
         sectorSprite = self.GetSectorSprite( sector )
         charactorSprite.rect.center = sectorSprite.rect.center
 
@@ -520,7 +590,7 @@ class PygameView:
         charactorSprite = self.GetCharactorSprite(charactor)
 
         charactorSprite.attack = attack
-        charactorSprite.updateAttackStrip(attack.pathToChSprite, attack.chSpriteFrames)
+        charactorSprite.updateAttackStrip(attack.pathToChSprite, attack.chSpriteFrames, attack.chSpriteWidth)
 
         charactorSprite.actionFramesLeft = attack.chSpriteFrames*2
         if attack.pathToSprite:
@@ -699,6 +769,7 @@ class Charactor:
         self.delay = 0 #this variable accounts for any delay when taking actions = attacking and moving
 
         self.chips = []
+        self.chipFactory = ChipFactory()
 
 
     #----------------------------------------------------------------------
@@ -760,6 +831,8 @@ class Charactor:
                 self.delay -= 1
             if self.charging:
                 self.charge += 1
+            if len(self.chips) < 3:
+                self.chips.append(self.chipFactory.getRandomChip(self.evManager, self.idNum))
 
         elif isinstance(event, HitEvent):
             if event.charactor.idNum == self.idNum:
@@ -780,6 +853,11 @@ class Charactor:
             if event.charactorID == self.idNum:
                 self.charge = 0
                 self.charging = False
+
+        elif isinstance(event, ActivateChipEvent) and event.charactorID == self.idNum:
+            chipToActivate = self.chips.pop(0)
+            ev = CharactorAttackRequest(chipToActivate.attack)
+            self.evManager.Post(ev)
         
 
 
@@ -877,21 +955,26 @@ class Sector:
 
 
 class Chip:
-    def __init__(self, attack, animationStrip):
+    def __init__(self, attack, thumbnail):
         self.attack = attack
-        self.thumbnail = None #Should be path to thumbnail
+        self.thumbnail = thumbnail #Should be path to thumbnail
+
+class SwordChip(Chip):
+    def __init__(self, evManager, invokerID):
+        Chip.__init__(self, SwordAttack(evManager, invokerID), None)    
+
 
 
 #This is for generating random chips to refill a character's chips. 
 # if there is a new type of chip, just add it to the dictionary. 
 class ChipFactory:
-    def __init__(self, evManager):
-        self.evManager = evManager
+    def __init__(self):
+        return
 
-    def getRandomChip():
+    def getRandomChip(self,evManager, invokerID):
         constructors = {1 : SwordChip} 
         i = random.randint(1,len(constructors))
-        return constructors[i]()
+        return constructors[i](evManager, invokerID)
 
 #-----------------------------------------------------------------------------
 class Attack:
@@ -914,7 +997,8 @@ class Attack:
                     spriteTop,
                     spriteHeight,
                     pathToChSprite,
-                    chSpriteFrames):
+                    chSpriteFrames,
+                    chSpriteWidth):
         self.charactor = None # owner of the attack
         self.evManager = evManager
         self.invokerID = invokerID
@@ -929,6 +1013,7 @@ class Attack:
 
         self.pathToChSprite = pathToChSprite
         self.chSpriteFrames = chSpriteFrames
+        self.chSpriteWidth  = chSpriteWidth
 
         #offset from current sector where attack should take place
         #e.g. if it applies to column in front of character, column offset should be 1
@@ -960,18 +1045,20 @@ class Attack:
 class BasicAttack(Attack):
     def __init__(self,evManager, invokerID):
         Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/basic_attack.png", 5)
+            [], 0, 0, "sprites/basic_attack_copy.png", 5, 204)
 
 class ChargedAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/hand_thing.png", 4)
+        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0, None, 
+            [], 0, 0, "sprites/basic_attack.png", 5, 204)
 
 
 class SwordAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.COL, 0, 1, "sprites/Swords_blade.png", 
-            [58,78,134,103,81,49], 90)   
+        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
+            [], 0, 0, "sprites/sword_sized.png", 7, 100)
+        # Attack.__init__(self, evManager, invokerID, 10, 10, Attack.COL, 0, 1, "sprites/Swords_blade.png", 
+        #     [58,78,134,103,81,49], 90)   
  
 
 
