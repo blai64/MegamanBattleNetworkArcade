@@ -272,9 +272,7 @@ class HPSprite(pygame.sprite.Sprite):
         else:
             self.color = (0,0,255)  
         self.update()
-        
-
-
+    
     def update(self):
         self.image = self.basicfont.render(str(self.charactor.health), True, self.color)
         self.rect = self.image.get_rect()
@@ -809,6 +807,10 @@ class Charactor:
         ev = CharactorAttackEvent(attack, self)
         self.evManager.Post(ev)
 
+    def Stunned(self):
+        self.delay = 40
+
+
     #----------------------------------------------------------------------
     def Notify(self, event):
         if isinstance( event, GameStartedEvent ):
@@ -837,6 +839,8 @@ class Charactor:
         elif isinstance(event, HitEvent):
             if event.charactor.idNum == self.idNum:
                 self.health -= event.attack.damage
+                if event.attack.stun:
+                    self.Stunned()
             #TODO: should cause hit stun if performing an attack
 
         elif isinstance(event, ChargingEvent):
@@ -963,6 +967,10 @@ class SwordChip(Chip):
     def __init__(self, evManager, invokerID):
         Chip.__init__(self, SwordAttack(evManager, invokerID), None)    
 
+class CannonChip(Chip):
+    def __init__(self, evManager, invokerID):
+        Chip.__init__(self, CannonAttack(evManager, invokerID), None)    
+
 
 
 #This is for generating random chips to refill a character's chips. 
@@ -972,7 +980,8 @@ class ChipFactory:
         return
 
     def getRandomChip(self,evManager, invokerID):
-        constructors = {1 : SwordChip} 
+        constructors = {1 : SwordChip,
+                        2 : CannonChip} 
         i = random.randint(1,len(constructors))
         return constructors[i](evManager, invokerID)
 
@@ -998,7 +1007,7 @@ class Attack:
                     spriteHeight,
                     pathToChSprite,
                     chSpriteFrames,
-                    chSpriteWidth):
+                    chSpriteWidth,stun):
         self.charactor = None # owner of the attack
         self.evManager = evManager
         self.invokerID = invokerID
@@ -1024,6 +1033,8 @@ class Attack:
         self.type = t #row, col, cell
         self.area = [] #hitzzones specified by nunmber, eg if tyoe = row, then 1 hits the first row, will be set when 
         self.active = False
+
+        self.stun = stun
     
     
     def invoke(self,sector):
@@ -1045,20 +1056,24 @@ class Attack:
 class BasicAttack(Attack):
     def __init__(self,evManager, invokerID):
         Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/basic_attack_copy.png", 5, 204)
+            [], 0, 0, "sprites/basic_attack_copy.png", 5, 204, False)
 
 class ChargedAttack(Attack):
     def __init__(self,evManager, invokerID):
         Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/basic_attack.png", 5, 204)
+            [], 0, 0, "sprites/basic_attack.png", 5, 204, True)#False
 
 
 class SwordAttack(Attack):
     def __init__(self,evManager, invokerID):
         Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/sword_sized.png", 7, 100)
+            [], 0, 0, "sprites/sword_sized-01.png", 7, 112, True)
         # Attack.__init__(self, evManager, invokerID, 10, 10, Attack.COL, 0, 1, "sprites/Swords_blade.png", 
         #     [58,78,134,103,81,49], 90)   
+class CannonAttack(Attack):
+    def __init__(self,evManager, invokerID):
+        Attack.__init__(self, evManager, invokerID, 40, 10, Attack.ROW, 0, 0, None, 
+            [], 0, 0, "sprites/canon_sized-01.png", 10, 120, True)
  
 
 
