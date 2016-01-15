@@ -611,6 +611,9 @@ class PygameView:
         self.frontSprites = pygame.sprite.RenderUpdates()
         self.extraSprites = pygame.sprite.RenderUpdates()
 
+	pygame.mixer.music.load("sounds/battlemusic.mp3");
+	pygame.mixer.music.play(-1,0.0);
+
     #----------------------------------------------------------------------
     def ShowMap(self, gameMap):
         # clear the screen first
