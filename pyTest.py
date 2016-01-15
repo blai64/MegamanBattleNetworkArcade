@@ -570,9 +570,9 @@ class PygameView:
         
 
         pygame.init()
-        self.window = pygame.display.set_mode( (1280, 768), pygame.FULLSCREEN )
+        self.window = pygame.display.set_mode( (1280, 768) )
 
-        pygame.display.set_caption( 'Example Game' )
+        pygame.display.set_caption( 'Megaman Battle Network' )
 
         self.bgImg = pygame.image.load("sprites/background_moved.png")
         self.bgImg = trans.scale(self.bgImg,(self.window.get_size()[1], self.window.get_size()[1]))
@@ -684,6 +684,13 @@ class PygameView:
             movingExtra = self.GetExtraSprite( extraSprite )
             movingExtra.extras = 1
             movingExtra.actionFramesLeft = 12
+    #----------------------
+    def PerformBeingHit(self, charactor, attack):
+        print "Perform being hit"
+        charactorSprite = self.GetCharactorSprite(charactor)
+        charactorSprite.updateAttackStrip("sprites/hit.png",6,80)
+        charactorSprite.actionFramesLeft = 20
+        charactorSprite.attack = attack
 
     #----------------------------------------------------------------------
     def GetCharactorSprite(self, charactor):
@@ -739,6 +746,9 @@ class PygameView:
 
         elif isinstance( event, CharactorAttackEvent ):
             self.PerformAttackCharactor( event.charactor, event.attack )
+
+        elif isinstance( event, HitEvent ):
+            self.PerformBeingHit( event.charactor, event.attack )
 
 
 
@@ -936,6 +946,8 @@ class Charactor:
                 self.health -= event.attack.damage
                 if event.attack.stun:
                     self.Stunned()
+                if isinstance(event.attack, SwordAttack):
+                    print "sword hit me"
             #TODO: should cause hit stun if performing an attack
 
         elif isinstance(event, ChargingEvent):
