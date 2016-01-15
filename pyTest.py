@@ -452,9 +452,20 @@ class CharactorSprite(pygame.sprite.Sprite):
         self.attackStrip = SpriteStripAnim(path,(0, 0,width,tempH),numFrames,MEGAMAN_SPRITE_COLOR,True,2)
 
     def resize(self):
-        charRow = self.charactor.sector.idNum / NUM_COLS
-        baseW, baseH = self.image.get_rect().width*3/4, self.image.get_rect().height*3/4
-        self.image = trans.scale(self.image,(baseW + (baseW/3) * charRow, baseH + (baseH/3) * charRow))
+        if self.marker <= 1:
+            charRow = self.charactor.sector.idNum / NUM_COLS
+            baseW, baseH = self.image.get_rect().width*3/4, self.image.get_rect().height*3/4
+            self.image = trans.scale(self.image,(baseW + (baseW/3) * charRow, baseH + (baseH/3) * charRow))
+        elif self.marker == 2: #red closer, first player closer
+            charCol = self.charactor.sector.idNum % NUM_COLS
+            baseW, baseH = self.image.get_rect().width*3/4, self.image.get_rect().height*3/4
+            self.image = trans.scale(self.image,(baseW + (baseW/3) * (NUM_COLS - charCol), baseH + (baseH/3) * (NUM_COLS - charCol)))
+        elif self.marker == 3: #blue closer, 
+            charCol = self.charactor.sector.idNum % NUM_COLS
+            baseW, baseH = self.image.get_rect().width*3/4, self.image.get_rect().height*3/4
+            self.image = trans.scale(self.image,(baseW + (baseW/3) * charCol, baseH + (baseH/3) * charCol))
+
+
 
     #----------------------------------------------------------------------
     def update(self):
@@ -464,7 +475,10 @@ class CharactorSprite(pygame.sprite.Sprite):
             self.image = self.defImage.copy()
             self.resize()
             self.rect = self.image.get_rect()
-            self.rect.midbottom = self.moveTo
+            if self.marker == 1:
+                self.rect.midtop = self.moveTo
+            else:
+                self.rect.midbottom = self.moveTo
             self.moveTo = None
             changed = True
 
@@ -498,7 +512,10 @@ class CharactorSprite(pygame.sprite.Sprite):
         #mirror character on right side
         if self.idNum == 2 and changed:
             self.image = trans.flip(self.image, True, False)
-            self.image = trans.scale2x(self.image)
+
+
+        if self.marker == 1 and changed:
+            self.image = trans.flip(self.image, False, True)
 
             
                         
@@ -602,47 +619,84 @@ class PygameView:
         self.background.blit(self.bgImg, ((self.background.get_rect().width - self.bgImg.get_rect().width) / 2,0))
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
+        
+        column = 0
+        row = 0
 
         # use this squareRect as a cursor and go through the
         # columns and rows and assign the rect 
+        if self.marker <= 1:
+            moveBase = 70
+            moveVert = 25
 
-        column = 0
-        row = 0
-        moveBase = 70
-        moveVert = 25
-
-        # positions of the SectorSprites
-        if self.marker == 1:
-            squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) + 20,
-                                        120 + (NUM_ROWS*moveVert), 20,20 ) )
-        else:
-            squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) + 20,
-                                        self.background.get_rect().height - 120 - (NUM_ROWS*moveVert), 20,20 ) )
-        print squareRect.left
-
-        
-        for sector in gameMap.sectors:
-            moveVal = moveBase + (5)*(row)
-            if column < NUM_COLS:
-                if self.marker == 1:
-                    squareRect = squareRect.move( moveVal,0 )
-                else:
-                    squareRect = squareRect.move( moveVal,0 )
+            # positions of the SectorSprites
+            if self.marker == 1:
+                squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) + 20,
+                                            120 + (NUM_ROWS*moveVert), 20,20 ) )
             else:
-                column = 0
-                row += 1
+                squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) + 20,
+                                            self.background.get_rect().height - 120 - (NUM_ROWS*moveVert), 20,20 ) )
+            print squareRect.left
+
+            
+            for sector in gameMap.sectors:
                 moveVal = moveBase + (5)*(row)
-                if self.marker == 1:
-                    squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) + 20 + 2*row,
-                                        120 + ((NUM_ROWS-row)*moveVert), 20,20 ) )
+                if column < NUM_COLS:
+                    if self.marker == 1:
+                        squareRect = squareRect.move( moveVal,0 )
+                    else:
+                        squareRect = squareRect.move( moveVal,0 )
                 else:
-                    squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) + 20 + 2*row,
-                                        self.background.get_rect().height - 120 - ((NUM_ROWS-row)*moveVert), 20,20 ) )
-            newSprite = SectorSprite( sector, row, column,self.backSprites)
-            newSprite.rect = squareRect
-            print str(sector.idNum) + " : left = " + str(newSprite.rect.left) + ",,,, right = " + str(newSprite.rect.right)
-            column += 1
-            newSprite = None
+                    column = 0
+                    row += 1
+                    moveVal = moveBase + (5)*(row)
+                    if self.marker == 1:
+                        squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) + 20 + 2*row,
+                                            120 + ((NUM_ROWS-row)*moveVert), 20,20 ) )
+                    else:
+                        squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) + 20 + 2*row,
+                                            self.background.get_rect().height - 120 - ((NUM_ROWS-row)*moveVert), 20,20 ) )
+                newSprite = SectorSprite( sector, row, column,self.backSprites)
+                newSprite.rect = squareRect
+                print str(sector.idNum) + " : left = " + str(newSprite.rect.left) + ",,,, right = " + str(newSprite.rect.right)
+                column += 1
+                newSprite = None
+        else:
+            moveBase = 30
+            moveVert = 15
+            # positions of the SectorSprites
+            if self.marker == 2:
+                squareRect = pygame.Rect( (self.background.get_rect().width - 20 + moveBase,
+                                            self.background.get_rect().height/2 + (moveVert*NUM_COLS) + 4*moveVert, 20,20 ) )
+            else:
+                squareRect = pygame.Rect( (20 + (moveBase*(NUM_COLS+1)),
+                                            self.background.get_rect().height/2 +  3*moveVert, 20,20 ) )
+            print squareRect.left
+
+            
+            for sector in gameMap.sectors:
+                moveVal = moveBase + (5)*(row)
+                if column < NUM_COLS:
+                    if self.marker == 2:
+                        squareRect = squareRect.move( -moveBase , moveVert*(row - 1) )
+                    else:
+                        squareRect = squareRect.move( -moveBase, -moveVert*(row-1) )
+                else:
+                    column = 0
+                    row += 1
+                    moveVal = moveBase + (5)*(row)
+                    if self.marker == 2:
+                        squareRect = pygame.Rect( (self.background.get_rect().width - 20,
+                                            self.background.get_rect().height/2 - ((moveVert*NUM_COLS)+ 4*moveVert)*(row-1) , 20,20 ) )
+                    else:
+                        squareRect = pygame.Rect( (20 + moveBase*NUM_COLS,
+                                            self.background.get_rect().height/2 - (4*moveVert)*(row-1), 20,20 ) )
+                newSprite = SectorSprite( sector, row, column,self.backSprites)
+                newSprite.rect = squareRect
+                print str(sector.idNum) + " : left = " + str(newSprite.rect.left) + ",,,, right = " + str(newSprite.rect.right)
+                column += 1
+                newSprite = None
+
 
 
     def ShowCharactorHP(self, charactor):
@@ -996,11 +1050,15 @@ class Map:
 
         # all can go left except leftmost column
         for i in xrange(1, NUM_COLS, 1):
+            if i == 3:
+                continue
             for j in xrange(0,NUM_ROWS,1):
                 k = i + NUM_COLS*j
                 self.sectors[k].neighbors[DIRECTION_LEFT] = self.sectors[k-1]    
 
         for i in xrange(0, NUM_COLS - 1, 1):
+            if i == 2:
+                continue
             for j in xrange(0,NUM_ROWS,1):
                 k = i + NUM_COLS*j
                 self.sectors[k].neighbors[DIRECTION_RIGHT] = self.sectors[k+1]   
@@ -1198,8 +1256,8 @@ def main():
 
     keybd = KeyboardController( evManager )
     spinner = CPUSpinnerController( evManager )
-    pygameView = PygameView( evManager, 0 )
-    #pygameView2 = PygameView( evManager, True )
+    pygameView = PygameView( evManager, 3 )
+    pygameView2 = PygameView( evManager, 2)
     game = Game( evManager )
     
     spinner.Run()
