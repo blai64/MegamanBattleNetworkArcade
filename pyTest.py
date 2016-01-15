@@ -1199,13 +1199,29 @@ class CannonAttack(Attack):
             ("sprites/fronts_backs/basic_shoot_back_copy.png", 4 , 81)],
             False)
  
+# start screen-----------------------------------------------------------------
+def startscreen():
+    w = 1080
+    h = 1080
+    size = (w,h)
+    end_it=False
+    screen = pygame.display.set_mode([w,h])
+    img = pygame.image.load("fullstart.bmp")
 
+    while (end_it==False):
+        #start background
+        screen.blit(img, (0,0))
+        for event in pygame.event.get():
+            if event.type==MOUSEBUTTONDOWN:
+                end_it=True
+        pygame.display.flip()
 
 
 
 #------------------------------------------------------------------------------
 def main():
     """..."""
+    startscreen()
     evManager = EventManager()
 
     keybd = KeyboardController( evManager )
