@@ -402,7 +402,7 @@ class CharactorSprite(pygame.sprite.Sprite):
         #--------------------------------- CKwong's spritesheet
         
         ### sprite sheets have been rescaled to twice bigger
-        if self.marker == 1:
+        if self.marker == 2:
             baseSS = spritesheet.spritesheet('sprites/fronts_backs/basic_shoot_front.png')
             baseW, baseH = baseSS.get_dimensions()
             charactorSurf = baseSS.image_at((0,0,69,120),MEGAMAN_SPRITE_COLOR)
@@ -453,8 +453,8 @@ class CharactorSprite(pygame.sprite.Sprite):
 
     def resize(self):
         charRow = self.charactor.sector.idNum / NUM_COLS
-        baseW, baseH = self.image.get_rect().width, self.image.get_rect().height
-        self.image = trans.scale(self.image,(baseW + baseW * charRow, baseH + baseH * charRow))
+        baseW, baseH = self.image.get_rect().width*3/4, self.image.get_rect().height*3/4
+        self.image = trans.scale(self.image,(baseW + (baseW/3) * charRow, baseH + (baseH/3) * charRow))
 
     #----------------------------------------------------------------------
     def update(self):
@@ -574,7 +574,7 @@ class PygameView:
 
         pygame.display.set_caption( 'Megaman Battle Network' )
 
-        self.bgImg = pygame.image.load("sprites/background_moved.png")
+        self.bgImg = pygame.image.load("sprites/background_final.png")
         self.bgImg = trans.scale(self.bgImg,(self.window.get_size()[1], self.window.get_size()[1]))
         
 
@@ -613,9 +613,10 @@ class PygameView:
 
         # positions of the SectorSprites
         if self.marker == 1:
-            squareRect = pygame.Rect( (D_WIDTH/2,D_HEIGHT/2, 128,128 ) )
+            squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) + 20,
+                                        120 + (NUM_ROWS*moveVert), 20,20 ) )
         else:
-            squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) - 10,
+            squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) + 20,
                                         self.background.get_rect().height - 120 - (NUM_ROWS*moveVert), 20,20 ) )
         print squareRect.left
 
@@ -624,7 +625,7 @@ class PygameView:
             moveVal = moveBase + (5)*(row)
             if column < NUM_COLS:
                 if self.marker == 1:
-                    squareRect = squareRect.move( 0,100 )
+                    squareRect = squareRect.move( moveVal,0 )
                 else:
                     squareRect = squareRect.move( moveVal,0 )
             else:
@@ -632,9 +633,10 @@ class PygameView:
                 row += 1
                 moveVal = moveBase + (5)*(row)
                 if self.marker == 1:
-                    squareRect = squareRect.move( -128, -(100*(NUM_COLS-1)))
+                    squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) + 20 + 2*row,
+                                        120 + ((NUM_ROWS-row)*moveVert), 20,20 ) )
                 else:
-                    squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) - 10,
+                    squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) + 20 + 2*row,
                                         self.background.get_rect().height - 120 - ((NUM_ROWS-row)*moveVert), 20,20 ) )
             newSprite = SectorSprite( sector, row, column,self.backSprites)
             newSprite.rect = squareRect
@@ -729,6 +731,7 @@ class PygameView:
             dirtyRects3 = self.extraSprites.draw(self.window)
             
             dirtyRects = dirtyRects1 + dirtyRects2 + dirtyRects3
+
             pygame.display.update( dirtyRects )
 
 
@@ -1207,7 +1210,7 @@ def main():
 
     keybd = KeyboardController( evManager )
     spinner = CPUSpinnerController( evManager )
-    pygameView = PygameView( evManager, False )
+    pygameView = PygameView( evManager, 0 )
     #pygameView2 = PygameView( evManager, True )
     game = Game( evManager )
     
