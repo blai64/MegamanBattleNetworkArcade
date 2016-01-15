@@ -240,7 +240,7 @@ class CPUSpinnerController:
         while self.keepGoing:
             event = TickEvent()
             self.evManager.Post( event )
-            clock.tick(50)
+            clock.tick(60)
 
     #----------------------------------------------------------------------
     def Notify(self, event):
@@ -283,6 +283,40 @@ class HPSprite(pygame.sprite.Sprite):
             self.rect.left = 300 
             self.rect.top = 0
 
+class ChipDisplaySprite(pygame.sprite.Sprite):
+    def __init__(self, charactor, group = None):
+        pygame.sprite.Sprite.__init__(self, group)
+        self.charactor = charactor
+        self.borderDistance = 10
+        self.chipDisplayWidth = 20
+        self.rect = None
+        self.update()
+
+    def update(self):
+        self.image = pygame.Surface((200, 50))
+        self.image.fill((128,128,128))
+        curChip = 0
+
+        for chip in self.charactor.chips:
+            chipImage = pygame.image.load(chip.thumbnail)
+
+            chipDisplay = pygame.Surface((self.chipDisplayWidth,30))
+            chipDisplay.fill((200,200,200))
+            chipDisplay.blit(chipImage, (0,0))
+
+            self.image.blit(chipDisplay, ((curChip + 1)*self.borderDistance + curChip*self.chipDisplayWidth, self.borderDistance) )
+            curChip += 1
+
+        self.rect = self.image.get_rect()
+        if self.charactor.idNum == 1:
+            self.rect.left = 0 
+            self.rect.top = 200
+        else: 
+            self.rect.left = 300 
+            self.rect.top = 200
+
+
+
 class ChargeSprite(pygame.sprite.Sprite):
     def __init__(self, charactor, group = None):
         pygame.sprite.Sprite.__init__(self, group)
@@ -322,8 +356,7 @@ class SectorSprite(pygame.sprite.Sprite):
     def __init__(self, sector, row, col, group=None):
         pygame.sprite.Sprite.__init__(self, group)
 
-        print("Path at terminal when executing this file")
-        print(os.getcwd())
+        
         fullname = os.path.join("C:",os.getcwd(),"sprites/panels.png")
 
         ss = spritesheet.spritesheet(fullname)
@@ -331,7 +364,12 @@ class SectorSprite(pygame.sprite.Sprite):
         w,h = ss.get_dimensions()
         panel_w = w / NUM_COLS
         panel_h = h / NUM_ROWS
-        self.image = ss.image_at((col*panel_w, row*panel_h, panel_w, panel_h))
+
+        self.image = pygame.Surface( (20,20) )
+        self.image.fill( (0,255,128) )
+
+        # self.image = ss.image_at((col*panel_w, row*panel_h, panel_w, panel_h))
+        # self.image.set_alpha(0)
         #self.image = ss.image_at((col * panel_w, row * panel_h , (col + 1) * panel_w, (row + 1) * panel_h))
         #self.image = pygame.image.load("ball.png")
         # self.image = pygame.Surface( (128,88) )
@@ -341,9 +379,10 @@ class SectorSprite(pygame.sprite.Sprite):
 
 #------------------------------------------------------------------------------
 class CharactorSprite(pygame.sprite.Sprite):
-    def __init__(self, charactor, group=None):
+    def __init__(self, charactor, marker, group=None):
         pygame.sprite.Sprite.__init__(self, group)
 
+        self.marker = marker
         self.charactor = charactor
         self.idNum = self.charactor.idNum
         
@@ -363,11 +402,15 @@ class CharactorSprite(pygame.sprite.Sprite):
         #--------------------------------- CKwong's spritesheet
         
         ### sprite sheets have been rescaled to twice bigger
-        
-        baseSS = spritesheet.spritesheet('sprites/base_layer.png')
-        baseW, baseH = baseSS.get_dimensions()
-        
-        charactorSurf = baseSS.image_at((0,0,108,108),MEGAMAN_SPRITE_COLOR)
+        if self.marker == 1:
+            baseSS = spritesheet.spritesheet('sprites/fronts_backs/basic_shoot_front.png')
+            baseW, baseH = baseSS.get_dimensions()
+            charactorSurf = baseSS.image_at((0,0,69,120),MEGAMAN_SPRITE_COLOR)
+
+        else:
+            baseSS = spritesheet.spritesheet('sprites/base_layer.png')
+            baseW, baseH = baseSS.get_dimensions()
+            charactorSurf = baseSS.image_at((0,0,108,108),MEGAMAN_SPRITE_COLOR)
         self.moveStrip = SpriteStripAnim('sprites/base_layer.png',(0,485,372/4,120),4, MEGAMAN_SPRITE_COLOR, True,2)
         
         #self.swordAttackStrip = SpriteStripAnim('sprites/base_layer.png',(0,610,389/4,120),4,MEGAMAN_SPRITE_COLOR,True,2)
@@ -408,21 +451,26 @@ class CharactorSprite(pygame.sprite.Sprite):
         tempW, tempH = tempSS.get_dimensions()
         self.attackStrip = SpriteStripAnim(path,(0, 0,width,tempH),numFrames,MEGAMAN_SPRITE_COLOR,True,2)
 
+    def resize(self):
+        charRow = self.charactor.sector.idNum / NUM_COLS
+        baseW, baseH = self.image.get_rect().width, self.image.get_rect().height
+        self.image = trans.scale(self.image,(baseW + baseW * charRow, baseH + baseH * charRow))
+
     #----------------------------------------------------------------------
     def update(self):
         #movement updates
         changed = False
         if self.moveTo and (self.actionFramesLeft == 0):
             self.image = self.defImage.copy()
-            
+            self.resize()
             self.rect = self.image.get_rect()
-            self.rect.center = self.moveTo
-            print (self.moveStrip.i)
+            self.rect.midbottom = self.moveTo
             self.moveTo = None
             changed = True
 
         elif self.moveTo:
             self.image = self.moveStrip.next().copy()
+            self.resize()
             self.actionFramesLeft -= 1
             changed = True
 
@@ -430,13 +478,14 @@ class CharactorSprite(pygame.sprite.Sprite):
         #attack updates
         elif self.attack and (self.actionFramesLeft == 0):
             self.image = self.defImage.copy()
-            print (self.attackStrip.i)
+            self.resize()
             self.attack = None
             changed = True
         
         elif self.attack:
             #self.image = self.basicAttackStrip.next()
             self.image = self.attackStrip.next().copy()
+            self.resize()
             self.actionFramesLeft -= 1
             changed = True
 
@@ -449,6 +498,9 @@ class CharactorSprite(pygame.sprite.Sprite):
         #mirror character on right side
         if self.idNum == 2 and changed:
             self.image = trans.flip(self.image, True, False)
+            self.image = trans.scale2x(self.image)
+
+            
                         
 
 #------------------------------------------------------------------------------
@@ -503,8 +555,6 @@ class EffectSprite(pygame.sprite.Sprite):
             self.extras = None
             #self.image = self.defImage
             self.kill()
-            print "attack update"
-            print (self.effectStrip.i)
         elif self.extras:
             self.image = self.effectStrip.next()
             self.actionFramesLeft -= 1
@@ -512,21 +562,33 @@ class EffectSprite(pygame.sprite.Sprite):
 
 #------------------------------------------------------------------------------
 class PygameView:
-    def __init__(self, evManager):
+    def __init__(self, evManager, marker):
+        self.marker = marker
         self.evManager = evManager
         self.evManager.RegisterListener( self )
 
+        
+
         pygame.init()
-        self.window = pygame.display.set_mode( (D_WIDTH,D_HEIGHT) )
+        self.window = pygame.display.set_mode( (1280, 768), pygame.FULLSCREEN )
+
         pygame.display.set_caption( 'Example Game' )
+
+        self.bgImg = pygame.image.load("sprites/background_moved.png")
+        self.bgImg = trans.scale(self.bgImg,(self.window.get_size()[1], self.window.get_size()[1]))
+        
+
         self.background = pygame.Surface( self.window.get_size() )
         self.background.fill( (0,0,0) )
+        self.background.blit(self.bgImg, ((1920 - 1080) / 2,0))
         font = pygame.font.Font(None, 30)
         text = """Press SPACE BAR to start"""
         textImg = font.render( text, 1, (255,0,0))
         self.background.blit( textImg, (0,0) )
         self.window.blit( self.background, (0,0) )
+        
         pygame.display.flip()
+        print pygame.display.list_modes()
 
         self.backSprites = pygame.sprite.RenderUpdates()
         self.frontSprites = pygame.sprite.RenderUpdates()
@@ -535,26 +597,48 @@ class PygameView:
     #----------------------------------------------------------------------
     def ShowMap(self, gameMap):
         # clear the screen first
+
         self.background.fill( (0,0,0) )
+        self.background.blit(self.bgImg, ((self.background.get_rect().width - self.bgImg.get_rect().width) / 2,0))
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
 
         # use this squareRect as a cursor and go through the
         # columns and rows and assign the rect 
-        # positions of the SectorSprites
-        squareRect = pygame.Rect( (-128,D_HEIGHT/2, 128,128 ) )
 
         column = 0
         row = 0
+        moveBase = 70
+        moveVert = 25
+
+        # positions of the SectorSprites
+        if self.marker == 1:
+            squareRect = pygame.Rect( (D_WIDTH/2,D_HEIGHT/2, 128,128 ) )
+        else:
+            squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveBase*(NUM_COLS/2 + 1)) - 10,
+                                        self.background.get_rect().height - 120 - (NUM_ROWS*moveVert), 20,20 ) )
+        print squareRect.left
+
+        
         for sector in gameMap.sectors:
+            moveVal = moveBase + (5)*(row)
             if column < NUM_COLS:
-                squareRect = squareRect.move( 128,0 )
+                if self.marker == 1:
+                    squareRect = squareRect.move( 0,100 )
+                else:
+                    squareRect = squareRect.move( moveVal,0 )
             else:
                 column = 0
                 row += 1
-                squareRect = squareRect.move( -(128*(NUM_COLS-1)), 100)
+                moveVal = moveBase + (5)*(row)
+                if self.marker == 1:
+                    squareRect = squareRect.move( -128, -(100*(NUM_COLS-1)))
+                else:
+                    squareRect = pygame.Rect( (self.background.get_rect().width/2 - (moveVal*(NUM_COLS/2)) - 10,
+                                        self.background.get_rect().height - 120 - ((NUM_ROWS-row)*moveVert), 20,20 ) )
             newSprite = SectorSprite( sector, row, column,self.backSprites)
             newSprite.rect = squareRect
+            print str(sector.idNum) + " : left = " + str(newSprite.rect.left) + ",,,, right = " + str(newSprite.rect.right)
             column += 1
             newSprite = None
 
@@ -562,12 +646,14 @@ class PygameView:
     def ShowCharactorHP(self, charactor):
         hpSprite = HPSprite(charactor, self.frontSprites)
         chargeSprite = ChargeSprite(charactor, self.frontSprites)
+        chipSprite = ChipDisplaySprite(charactor, self.frontSprites)
     #----------------------------------------------------------------------
     def ShowCharactor(self, charactor):
         sector = charactor.sector
-        charactorSprite = CharactorSprite( charactor, self.frontSprites )
+        charactorSprite = CharactorSprite( charactor, self.marker, self.frontSprites )
         sectorSprite = self.GetSectorSprite( sector )
         charactorSprite.rect.center = sectorSprite.rect.center
+        charactorSprite.rect.bottom = sectorSprite.rect.bottom
 
     #----------------------------------------------------------------------
     def MoveCharactor(self, charactor):
@@ -577,20 +663,20 @@ class PygameView:
         sectorSprite = self.GetSectorSprite( sector )
 
         charactorSprite.actionFramesLeft = 8
-        charactorSprite.moveTo = sectorSprite.rect.midtop
+        charactorSprite.moveTo = sectorSprite.rect.center
 
 
     #----------------------
     def PerformAttackCharactor(self, charactor, attack):
-        sector = charactor.sector
-        
-        
+        sector = charactor.sector        
         charactorSprite = self.GetCharactorSprite(charactor)
-
         charactorSprite.attack = attack
-        charactorSprite.updateAttackStrip(attack.pathToChSprite, attack.chSpriteFrames, attack.chSpriteWidth)
+        print attack.chSpriteInfo
+        charactorSprite.updateAttackStrip(attack.chSpriteInfo[self.marker][0], 
+                                          attack.chSpriteInfo[self.marker][1], 
+                                          attack.chSpriteInfo[self.marker][2])
 
-        charactorSprite.actionFramesLeft = attack.chSpriteFrames*2
+        charactorSprite.actionFramesLeft = attack.chSpriteInfo[self.marker][1]
         if attack.pathToSprite:
             extraSprite = EffectSprite( attack.pathToSprite, attack.spriteWidths, attack.spriteTop, attack.spriteHeight, self.extraSprites )
             sectorSprite = self.GetSectorSprite( sector )
@@ -652,8 +738,9 @@ class PygameView:
             self.MoveCharactor( event.charactor )
 
         elif isinstance( event, CharactorAttackEvent ):
-            print "hello"
             self.PerformAttackCharactor( event.charactor, event.attack )
+
+
 
 #------------------------------------------------------------------------------
 class Game:
@@ -810,6 +897,14 @@ class Charactor:
     def Stunned(self):
         self.delay = 40
 
+    def ActivateChip(self):
+        if (self.state == Charactor.STATE_INACTIVE) or self.delay != 0:
+            return
+        chipToActivate = self.chips.pop(0)
+        ev = CharactorAttackRequest(chipToActivate.attack)
+        self.evManager.Post(ev)
+        
+
 
     #----------------------------------------------------------------------
     def Notify(self, event):
@@ -859,9 +954,7 @@ class Charactor:
                 self.charging = False
 
         elif isinstance(event, ActivateChipEvent) and event.charactorID == self.idNum:
-            chipToActivate = self.chips.pop(0)
-            ev = CharactorAttackRequest(chipToActivate.attack)
-            self.evManager.Post(ev)
+            self.ActivateChip()
         
 
 
@@ -965,11 +1058,11 @@ class Chip:
 
 class SwordChip(Chip):
     def __init__(self, evManager, invokerID):
-        Chip.__init__(self, SwordAttack(evManager, invokerID), None)    
+        Chip.__init__(self, SwordAttack(evManager, invokerID), "sprites/chipThumbnails/sword.png")    
 
 class CannonChip(Chip):
     def __init__(self, evManager, invokerID):
-        Chip.__init__(self, CannonAttack(evManager, invokerID), None)    
+        Chip.__init__(self, CannonAttack(evManager, invokerID), "sprites/chipThumbnails/cannon.png")    
 
 
 
@@ -1005,9 +1098,9 @@ class Attack:
                     spriteWidths,
                     spriteTop,
                     spriteHeight,
-                    pathToChSprite,
-                    chSpriteFrames,
-                    chSpriteWidth,stun):
+
+                    chSpriteInfo,
+                    stun):
         self.charactor = None # owner of the attack
         self.evManager = evManager
         self.invokerID = invokerID
@@ -1020,9 +1113,8 @@ class Attack:
         self.spriteTop = spriteTop
         self.spriteHeight = spriteHeight
 
-        self.pathToChSprite = pathToChSprite
-        self.chSpriteFrames = chSpriteFrames
-        self.chSpriteWidth  = chSpriteWidth
+        self.chSpriteInfo = chSpriteInfo
+        
 
         #offset from current sector where attack should take place
         #e.g. if it applies to column in front of character, column offset should be 1
@@ -1055,25 +1147,42 @@ class Attack:
 #implement other types of attacks here
 class BasicAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/basic_attack_copy.png", 5, 204, False)
+        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, 
+            None, [], 0, 0, #overlay information
+            [("sprites/basic_attack_copy.png", 5, 204),  #side/side
+            ("sprites/fronts_backs/basic_shoot_front_copy.png", 4 , 69), #front
+            ("sprites/fronts_backs/basic_shoot_back_copy.png", 4 , 81)], #back
+            False) 
+
 
 class ChargedAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/basic_attack.png", 5, 204, True)#False
+        Attack.__init__(self, evManager, invokerID, 10, 10, Attack.ROW, 0, 0, 
+            None, [], 0, 0, 
+            [("sprites/basic_attack.png", 5, 204),#False
+            ("sprites/fronts_backs/basic_shoot_front_copy.png", 4 , 69), #front
+            ("sprites/fronts_backs/basic_shoot_back_copy.png", 4 , 81)],
+            False)
 
 
 class SwordAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/sword_sized-01.png", 7, 112, True)
+        Attack.__init__(self, evManager, invokerID, 1, 10, Attack.ROW, 0, 0, 
+            None, [], 0, 0, 
+            [("sprites/sword_sized-01.png", 7, 112),#False
+            ("sprites/fronts_backs/basic_shoot_front_copy.png", 4 , 69), #front
+            ("sprites/fronts_backs/basic_shoot_back_copy.png", 4 , 81)],
+            False)
         # Attack.__init__(self, evManager, invokerID, 10, 10, Attack.COL, 0, 1, "sprites/Swords_blade.png", 
         #     [58,78,134,103,81,49], 90)   
 class CannonAttack(Attack):
     def __init__(self,evManager, invokerID):
-        Attack.__init__(self, evManager, invokerID, 40, 10, Attack.ROW, 0, 0, None, 
-            [], 0, 0, "sprites/canon_sized-01.png", 10, 120, True)
+        Attack.__init__(self, evManager, invokerID, 40, 10, Attack.ROW, 0, 0, 
+            None, [], 0, 0, 
+            [("sprites/canon_sized-01.png", 10, 120),
+            ("sprites/fronts_backs/basic_shoot_front_copy.png", 4 , 69), #front
+            ("sprites/fronts_backs/basic_shoot_back_copy.png", 4 , 81)],
+            False)
  
 
 
@@ -1086,8 +1195,8 @@ def main():
 
     keybd = KeyboardController( evManager )
     spinner = CPUSpinnerController( evManager )
-    pygameView = PygameView( evManager )
-    pygameView2 = PygameView( evManager )
+    pygameView = PygameView( evManager, False )
+    #pygameView2 = PygameView( evManager, True )
     game = Game( evManager )
     
     spinner.Run()
